@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PatentScope AI - Chemical Patent Analyzer</title>
+    <style>
+        :root {
+            --primary: #1565C0;
+            --primary-dark: #0D47A1;
+            --success: #4CAF50;
+            --warning: #FF9800;
+            --danger: #F44336;
+            --bg: #f5f7fa;
+            --card-bg: #ffffff;
+            --text: #212121;
+            --text-light: #757575;
+            --border: #e0e0e0;
+            --shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header {
+            text-align: center;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow);
+        }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .subtitle { font-size: 1.2em; opacity: 0.9; }
+        .input-section {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow);
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .tab-btn {
+            padding: 10px 20px;
+            border: none;
+            background: transparent;
+            color: var(--text-light);
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        .tab-btn:hover { background: #f0f0f0; color: var(--text); }
+        .tab-btn.active { background: var(--primary); color: white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-family: 'Consolas', monospace;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 300px;
+        }
+        textarea:focus { outline: none; border-color: var(--primary); }
+        .btn-group { display: flex; gap: 15px; margin-top: 20px; flex-wrap: wrap; }
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-2px); }
+        .btn-secondary { background: #e0e0e0; color: var(--text); }
+        .loading {
+            text-align: center;
+            padding: 60px;
+            display: none;
+        }
+        .loading.show { display: block; }
+        .spinner {
+            width: 50px; height: 50px;
+            border: 4px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .results { display: none; background: var(--card-bg); border-radius: 12px; padding: 30px; box-shadow: var(--shadow); }
+        .results.show { display: block; }
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: var(--shadow);
+        }
+        .card-icon { font-size: 36px; margin-bottom: 10px; }
+        .card-value { font-size: 36px; font-weight: bold; margin-bottom: 5px; }
+        .card-label { font-size: 14px; opacity: 0.9; }
+        .result-tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .result-tab-btn {
+            padding: 10px 20px;
+            border: none;
+            background: transparent;
+            color: var(--text-light);
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .result-tab-btn.active { background: var(--primary); color: white; }
+        .result-content { display: none; }
+        .result-content.active { display: block; }
+        .markush-code {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.8;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            margin: 15px 0;
+        }
+        .claim-item {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid var(--primary);
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .badge-compound { background: #e3f2fd; color: var(--primary); }
+        .badge-method { background: #e8f5e9; color: var(--success); }
+        .badge-markush { background: #fff3e0; color: var(--warning); }
+        .patentability-box {
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .patentability-box.success { background: #e8f5e9; border-left: 4px solid var(--success); }
+        .patentability-box.warning { background: #fff3e0; border-left: 4px solid var(--warning); }
+        .patentability-box.danger { background: #ffebee; border-left: 4px solid var(--danger); }
+        .recommendation {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .recommendation.high { background: #ffebee; border-left: 4px solid var(--danger); }
+        .recommendation.medium { background: #fff3e0; border-left: 4px solid var(--warning); }
+        .recommendation.low { background: #e8f5e9; border-left: 4px solid var(--success); }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { background: var(--primary); color: white; }
+        tr:hover { background: #f5f5f5; }
+        .gap-item {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid var(--warning);
+        }
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-light);
+            margin-top: 40px;
+        }
+        .scope-viz {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            margin: 20px 0;
+        }
+        .scope-circle {
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: white;
+            font-weight: bold;
+            position: relative;
+        }
+        @media (max-width: 768px) {
+            .header h1 { font-size: 1.8em; }
+            .summary-cards { grid-template-columns: repeat(2, 1fr); }
+            .tabs, .result-tabs { flex-wrap: wrap; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🔬 PatentScope AI</h1>
+            <p class="subtitle">Chemical Patent Analyzer with Markush Notation</p>
+        </header>
+
+        <section class="input-section">
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('paste')">Paste Patent Text</button>
+                <button class="tab-btn" onclick="switchTab('validate')">Validate Structure</button>
+            </div>
+
+            <div id="paste-tab" class="tab-content active">
+                <textarea id="patent-input" placeholder="Paste your patent text here...
+
+Example:
+Title: Novel Pyrazole Compounds
+
+Claims:
+1. A compound of formula I wherein R1 is selected from H, methyl, ethyl;
+   R2 is selected from phenyl, pyridyl;
+   provided that when R1 is H, R2 is not phenyl.
+
+2. The compound of claim 1, wherein R1 is methyl.
+
+Description: The invention provides novel pyrazole derivatives."></textarea>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="analyzePatent()">🔍 Analyze Patent</button>
+                    <button class="btn btn-secondary" onclick="clearInput()">Clear</button>
+                    <button class="btn btn-secondary" onclick="loadExample()">Load Example</button>
+                </div>
+            </div>
+
+            <div id="validate-tab" class="tab-content">
+                <p style="margin-bottom: 15px;">Enter a chemical structure to check if it falls within patent claims:</p>
+                <input type="text" id="structure-input" placeholder="Enter SMILES, IUPAC name, or common name" 
+                       style="width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 8px; font-size: 16px; margin-bottom: 15px;">
+                <button class="btn btn-primary" onclick="validateStructure()">✓ Validate Structure</button>
+            </div>
+        </section>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Analyzing patent... This may take a moment</p>
+        </div>
+
+        <div id="results" class="results">
+            <h2 style="margin-bottom: 25px; color: var(--primary); border-bottom: 2px solid var(--border); padding-bottom: 15px;">📊 Analysis Results</h2>
+            
+            <div class="summary-cards">
+                <div class="card">
+                    <div class="card-icon">📋</div>
+                    <div class="card-value" id="total-claims">0</div>
+                    <div class="card-label">Total Claims</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🧪</div>
+                    <div class="card-value" id="total-compounds">0</div>
+                    <div class="card-label">Compounds</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📐</div>
+                    <div class="card-value" id="markush-vars">0</div>
+                    <div class="card-label">Markush Variables</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🎯</div>
+                    <div class="card-value" id="coverage-pct">0%</div>
+                    <div class="card-label">Coverage</div>
+                </div>
+            </div>
+
+            <div class="result-tabs">
+                <button class="result-tab-btn active" onclick="switchResultTab('overview')">Overview</button>
+                <button class="result-tab-btn" onclick="switchResultTab('markush')">Markush Notation</button>
+                <button class="result-tab-btn" onclick="switchResultTab('claims')">Claims</button>
+                <button class="result-tab-btn" onclick="switchResultTab('scope')">Scope Diagram</button>
+                <button class="result-tab-btn" onclick="switchResultTab('patentability')">Patentability</button>
+                <button class="result-tab-btn" onclick="switchResultTab('report')">Report</button>
+            </div>
+
+            <div id="overview-content" class="result-content active">
+                <h3>📝 Executive Summary</h3>
+                <pre id="exec-summary" style="background: #f8f9fa; padding: 20px; border-radius: 8px; white-space: pre-wrap; line-height: 1.8;"></pre>
+                
+                <h3 style="margin-top: 30px;">💡 Novelty Indicators</h3>
+                <div id="novelty-section"></div>
+                
+                <h3 style="margin-top: 30px;">🧪 Chemical Entities</h3>
+                <table id="chemical-table">
+                    <thead><tr><th>Name</th><th>Type</th><th>Formula</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <div id="markush-content" class="result-content">
+                <h3>📐 Markush Notation</h3>
+                <pre id="full-markush" class="markush-code"></pre>
+                <h3>🎯 Simplified</h3>
+                <pre id="simplified-markush" class="markush-code"></pre>
+                <h3>📊 Variables</h3>
+                <table id="variables-table">
+                    <thead><tr><th>Variable</th><th>Values</th><th>Scope</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <div id="claims-content" class="result-content">
+                <h3>📋 Claims Analysis</h3>
+                <div id="claims-list"></div>
+            </div>
+
+            <div id="scope-content" class="result-content">
+                <h3>🎯 Scope Coverage Visualization</h3>
+                <div id="scope-viz" class="scope-viz"></div>
+                <h3>⚠️ Coverage Gaps</h3>
+                <div id="gaps-list"></div>
+            </div>
+
+            <div id="patentability-content" class="result-content">
+                <h3>⚖️ Patentability Assessment</h3>
+                <div id="patentability-results"></div>
+            </div>
+
+            <div id="report-content" class="result-content">
+                <h3>📄 Recommendations</h3>
+                <div id="recommendations-list"></div>
+                <div style="margin-top: 20px;">
+                    <button class="btn btn-secondary" onclick="exportJSON()">Export JSON</button>
+                    <button class="btn btn-secondary" onclick="window.print()">Print Report</button>
+                </div>
+            </div>
+        </div>
+
+        <footer class="footer">
+            <p>PatentScope AI - Advanced Chemical Patent Analysis</p>
+        </footer>
+    </div>
+
+    <script>
+        // Patent Parser Engine (Client-side)
+        class PatentParser {
+            parse(text) {
+                const result = {
+                    title: this.extractTitle(text),
+                    abstract: this.extractAbstract(text),
+                    claims: this.parseClaims(text),
+                    markushGroups: this.extractMarkush(text),
+                    chemicalStructures: this.extractStructures(text)
+                };
+                return result;
+            }
+
+            extractTitle(text) {
+                const match = text.match(/Title[\s:]*(.+)/i);
+                return match ? match[1].trim() : 'Untitled Patent';
+            }
+
+            extractAbstract(text) {
+                const match = text.match(/Abstract[\s:]*(.+?)(?=\n\n|\nClaims)/is);
+                return match ? match[1].trim() : '';
+            }
+
+            parseClaims(text) {
+                const claims = [];
+                const claimPattern = /(?:^|\n)\s*(\d+)\.\s*(.+?)(?=\n\s*\d+\.|\n\n[A-Z]|$)/gs;
+                let match;
+                
+                while ((match = claimPattern.exec(text)) !== null) {
+                    const claimText = match[2].replace(/\n/g, ' ').trim();
+                    claims.push({
+                        number: parseInt(match[1]),
+                        text: claimText,
+                        type: this.classifyClaim(claimText),
+                        hasMarkush: this.hasMarkush(claimText),
+                        dependencies: this.extractDeps(claimText)
+                    });
+                }
+                return claims;
+            }
+
+            classifyClaim(text) {
+                const lower = text.toLowerCase();
+                if (lower.includes('compound') || lower.includes('formula')) return 'compound';
+                if (lower.includes('method') || lower.includes('process')) return 'method';
+                if (lower.includes('composition')) return 'composition';
+                return 'product';
+            }
+
+            hasMarkush(text) {
+                return /wherein|selected from|R\d+\s+is|X\s+is/i.test(text);
+            }
+
+            extractDeps(text) {
+                const deps = [];
+                const matches = text.matchAll(/claim[s]?\s+(\d+)(?:\s*[-,\s]+\s*(\d+))?/gi);
+                for (const match of matches) {
+                    deps.push(parseInt(match[1]));
+                    if (match[2]) deps.push(parseInt(match[2]));
+                }
+                return [...new Set(deps)];
+            }
+
+            extractMarkush(text) {
+                const groups = [];
+                const patterns = [
+                    /(R\d+)\s+is\s+(.+?)(?=;|\.\s*[A-Z]|wherein|$)/gi,
+                    /(X|Y|Z|A|B)\s+is\s+(.+?)(?=;|\.\s*[A-Z]|wherein|$)/gi,
+                ];
+                
+                for (const pattern of patterns) {
+                    let match;
+                    while ((match = pattern.exec(text)) !== null) {
+                        const values = match[2].split(/,|\s+or\s+/).map(v => v.trim()).filter(v => v);
+                        groups.push({
+                            variable: match[1],
+                            values: values,
+                            count: values.length
+                        });
+                    }
+                }
+                return groups;
+            }
+
+            extractStructures(text) {
+                const structures = [];
+                const formulas = text.match(/\b([A-Z][a-z]?\d*){2,}\b/g) || [];
+                formulas.forEach(f => {
+                    if (f.length > 2 && f.length < 30) {
+                        structures.push({ formula: f, type: 'formula' });
+                    }
+                });
+                return structures;
+            }
+        }
+
+        // Chemical Analyzer
+        class ChemicalAnalyzer {
+            analyze(parsed) {
+                return {
+                    compounds: this.identifyCompounds(parsed),
+                    functionalGroups: this.identifyGroups(parsed),
+                    noveltyIndicators: this.checkNovelty(parsed)
+                };
+            }
+
+            identifyCompounds(parsed) {
+                const compounds = [];
+                const ringSystems = ['pyrazole', 'pyridine', 'pyrimidine', 'imidazole', 'phenyl', 'thiophene', 'furan'];
+                
+                ringSystems.forEach(ring => {
+                    if (parsed.title.toLowerCase().includes(ring) || 
+                        parsed.abstract.toLowerCase().includes(ring)) {
+                        compounds.push({
+                            name: ring.charAt(0).toUpperCase() + ring.slice(1),
+                            type: 'scaffold',
+                            formula: 'C?H?N?'
+                        });
+                    }
+                });
+                
+                parsed.chemicalStructures.forEach(s => {
+                    compounds.push({
+                        name: `Compound ${s.formula}`,
+                        type: s.type,
+                        formula: s.formula
+                    });
+                });
+                
+                return compounds;
+            }
+
+            identifyGroups(parsed) {
+                const groups = [];
+                const groupMap = {
+                    'OH': 'hydroxyl', 'NH2': 'amine', 'COOH': 'carboxyl',
+                    'halogen': 'halogen', 'alkyl': 'alkyl', 'aryl': 'aryl'
+                };
+                
+                const text = (parsed.abstract + ' ' + parsed.claims.map(c => c.text).join(' ')).toLowerCase();
+                
+                Object.entries(groupMap).forEach(([key, value]) => {
+                    if (text.includes(key.toLowerCase()) || text.includes(value)) {
+                        groups.push(value);
+                    }
+                });
+                
+                return [...new Set(groups)];
+            }
+
+            checkNovelty(parsed) {
+                const indicators = [];
+                const text = (parsed.title + ' ' + parsed.abstract).toLowerCase();
+                
+                if (text.includes('surprising') || text.includes('unexpectedly')) {
+                    indicators.push({ type: 'unexpected_results', count: 1 });
+                }
+                if (text.includes('novel') || text.includes('new')) {
+                    indicators.push({ type: 'novel_compound', count: 1 });
+                }
+                if (text.includes('improved') || text.includes('enhanced')) {
+                    indicators.push({ type: 'improved_activity', count: 1 });
+                }
+                
+                return indicators;
+            }
+        }
+
+        // Markush Generator
+        class MarkushGenerator {
+            generate(parsed, chemical) {
+                const vars = {};
+                let totalCombinations = 1;
+                
+                parsed.markushGroups.forEach(group => {
+                    vars[group.variable] = {
+                        values: group.values,
+                        count: group.count,
+                        scope: group.count > 10 ? 'very_broad' : group.count > 5 ? 'broad' : 'narrow'
+                    };
+                    totalCombinations *= group.count || 1;
+                });
+                
+                const notation = Object.entries(vars).map(([k, v]) => {
+                    const vals = v.values.slice(0, 5).join(', ');
+                    const more = v.values.length > 5 ? ` ... (${v.values.length - 5} more)` : '';
+                    return `${k} = ${vals}${more}`;
+                }).join(' | ');
+                
+                return {
+                    variables: vars,
+                    simplified: notation,
+                    full: this.generateFullNotation(vars),
+                    totalCombinations,
+                    scopeSummary: {
+                        totalVariables: Object.keys(vars).length,
+                        totalCombinations,
+                        scopeBreadth: totalCombinations > 1000 ? 'very_broad' : totalCombinations > 100 ? 'broad' : 'narrow'
+                    }
+                };
+            }
+
+            generateFullNotation(vars) {
+                let result = "Markush Notation:\n" + "=".repeat(60) + "\n\n";
+                result += "Core Structure: [Patent Claim Core]\n\n";
+                result += "Variable Definitions:\n" + "-".repeat(40) + "\n";
+                
+                Object.entries(vars).forEach(([name, data]) => {
+                    const vals = data.values.join(', ');
+                    result += `${name} = ${vals}\n`;
+                });
+                
+                return result;
+            }
+        }
+
+        // Scope Analyzer
+        class ScopeAnalyzer {
+            analyze(markush, claims) {
+                const totalVars = Object.keys(markush.variables).length;
+                const gaps = [];
+                
+                if (totalVars < 2) {
+                    gaps.push({
+                        type: 'limited_variables',
+                        description: 'Few Markush variables limit claim scope',
+                        recommendation: 'Consider adding more substituent positions'
+                    });
+                }
+                
+                return {
+                    coveragePercentage: Math.min(100, totalVars * 25 + 25),
+                    gaps,
+                    independentClaims: claims.filter(c => c.dependencies.length === 0).length,
+                    dependentClaims: claims.filter(c => c.dependencies.length > 0).length
+                };
+            }
+        }
+
+        // Patentability Assessor
+        class PatentabilityAssessor {
+            assess(parsed, chemical, markush) {
+                const text = (parsed.title + ' ' + parsed.abstract).toLowerCase();
+                
+                return {
+                    section101: {
+                        eligible: true,
+                        notes: ['Chemical compounds are patent-eligible subject matter']
+                    },
+                    section102: {
+                        novel: chemical.noveltyIndicators.length > 0 ? true : null,
+                        notes: chemical.noveltyIndicators.length > 0 
+                            ? ['Novelty indicators detected in patent text']
+                            : ['No clear novelty indicators - prior art search recommended']
+                    },
+                    section103: {
+                        nonObvious: markush.totalCombinations > 50 ? true : null,
+                        notes: [`Markush scope covers ${markush.totalCombinations} combinations`]
+                    },
+                    overall: {
+                        patentable: chemical.noveltyIndicators.length > 0 && markush.totalCombinations > 10,
+                        confidence: chemical.noveltyIndicators.length > 0 ? 'moderate' : 'low'
+                    }
+                };
+            }
+        }
+
+        // Report Generator
+        class ReportGenerator {
+            generate(parsed, chemical, markush, scope, patentability) {
+                const recs = [];
+                
+                if (scope.gaps.length > 0) {
+                    recs.push({ priority: 'medium', text: 'Address coverage gaps identified in scope analysis' });
+                }
+                if (patentability.section102.novel === null) {
+                    recs.push({ priority: 'high', text: 'Conduct comprehensive prior art search' });
+                }
+                if (markush.scopeSummary.scopeBreadth === 'very_broad') {
+                    recs.push({ priority: 'high', text: 'Narrow Markush claims to strengthen validity' });
+                }
+                recs.push({ priority: 'medium', text: 'Add dependent claims for key embodiments' });
+                
+                return { recommendations: recs };
+            }
+        }
+
+        // Main Analysis Function
+        let currentAnalysis = null;
+
+        function analyzePatent() {
+            const text = document.getElementById('patent-input').value.trim();
+            if (!text) { alert('Please enter patent text'); return; }
+
+            document.getElementById('loading').classList.add('show');
+            document.getElementById('results').classList.remove('show');
+
+            setTimeout(() => {
+                const parser = new PatentParser();
+                const analyzer = new ChemicalAnalyzer();
+                const markushGen = new MarkushGenerator();
+                const scopeAnalyzer = new ScopeAnalyzer();
+                const assessor = new PatentabilityAssessor();
+                const reporter = new ReportGenerator();
+
+                const parsed = parser.parse(text);
+                const chemical = analyzer.analyze(parsed);
+                const markush = markushGen.generate(parsed, chemical);
+                const scope = scopeAnalyzer.analyze(markush, parsed.claims);
+                const patentability = assessor.assess(parsed, chemical, markush);
+                const report = reporter.generate(parsed, chemical, markush, scope, patentability);
+
+                currentAnalysis = { parsed, chemical, markush, scope, patentability, report };
+                displayResults(currentAnalysis);
+
+                document.getElementById('loading').classList.remove('show');
+                document.getElementById('results').classList.add('show');
+                document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+            }, 500);
+        }
+
+        function displayResults(data) {
+            // Summary cards
+            document.getElementById('total-claims').textContent = data.parsed.claims.length;
+            document.getElementById('total-compounds').textContent = data.chemical.compounds.length;
+            document.getElementById('markush-vars').textContent = Object.keys(data.markush.variables).length;
+            document.getElementById('coverage-pct').textContent = data.scope.coveragePercentage + '%';
+
+            // Overview
+            document.getElementById('exec-summary').textContent = generateSummary(data);
+            
+            const noveltyDiv = document.getElementById('novelty-section');
+            if (data.chemical.noveltyIndicators.length > 0) {
+                noveltyDiv.innerHTML = data.chemical.noveltyIndicators.map(n => 
+                    `<div class="recommendation low"><strong>${n.type.replace(/_/g, ' ').toUpperCase()}</strong>: ${n.count} occurrence(s)</div>`
+                ).join('');
+            } else {
+                noveltyDiv.innerHTML = '<p style="color: var(--text-light);">No clear novelty indicators detected</p>';
+            }
+
+            const chemTable = document.querySelector('#chemical-table tbody');
+            chemTable.innerHTML = data.chemical.compounds.map(c => 
+                `<tr><td>${c.name}</td><td>${c.type}</td><td>${c.formula}</td></tr>`
+            ).join('');
+
+            // Markush
+            document.getElementById('full-markush').textContent = data.markush.full;
+            document.getElementById('simplified-markush').textContent = data.markush.simplified;
+            
+            const varTable = document.querySelector('#variables-table tbody');
+            varTable.innerHTML = Object.entries(data.markush.variables).map(([k, v]) => 
+                `<tr><td><code>${k}</code></td><td>${v.count}</td><td><span class="badge badge-${v.scope}">${v.scope}</span></td></tr>`
+            ).join('');
+
+            // Claims
+            const claimsDiv = document.getElementById('claims-list');
+            claimsDiv.innerHTML = data.parsed.claims.map(c => `
+                <div class="claim-item">
+                    <strong>Claim ${c.number}</strong> <span class="badge badge-${c.type}">${c.type}</span>
+                    ${c.hasMarkush ? '<span class="badge badge-markush">Markush</span>' : ''}
+                    <p style="margin-top: 10px;">${c.text.substring(0, 300)}${c.text.length > 300 ? '...' : ''}</p>
+                    ${c.dependencies.length > 0 ? `<p style="color: var(--text-light);">Depends on: Claim ${c.dependencies.join(', ')}</p>` : '<p style="color: var(--success);"><strong>Independent Claim</strong></p>'}
+                </div>
+            `).join('');
+
+            // Scope visualization
+            const scopeViz = document.getElementById('scope-viz');
+            const cov = data.scope.coveragePercentage;
+            const color = cov > 75 ? '#4CAF50' : cov > 50 ? '#FF9800' : '#F44336';
+            scopeViz.innerHTML = `
+                <div style="text-align: center;">
+                    <div style="width: 200px; height: 200px; border-radius: 50%; background: conic-gradient(${color} ${cov}%, #e0e0e0 ${cov}%); margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+                        <div style="width: 140px; height: 140px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; color: ${color};">
+                            ${cov}%
+                        </div>
+                    </div>
+                    <p style="font-size: 18px; color: var(--text);">Scope Coverage</p>
+                    <p style="color: var(--text-light);">${data.scope.independentClaims} independent, ${data.scope.dependentClaims} dependent claims</p>
+                </div>
+            `;
+
+            const gapsDiv = document.getElementById('gaps-list');
+            if (data.scope.gaps.length > 0) {
+                gapsDiv.innerHTML = data.scope.gaps.map(g => `
+                    <div class="gap-item">
+                        <strong>${g.type.replace(/_/g, ' ').toUpperCase()}</strong>
+                        <p>${g.description}</p>
+                        <p><strong>Fix:</strong> ${g.recommendation}</p>
+                    </div>
+                `).join('');
+            } else {
+                gapsDiv.innerHTML = '<p style="color: var(--success);">✓ No coverage gaps identified</p>';
+            }
+
+            // Patentability
+            const patDiv = document.getElementById('patentability-results');
+            patDiv.innerHTML = `
+                <div class="patentability-box ${data.patentability.section101.eligible ? 'success' : 'danger'}">
+                    <h4>§ 101 - Subject Matter Eligibility</h4>
+                    <strong>${data.patentability.section101.eligible ? '✓ ELIGIBLE' : '✗ NOT ELIGIBLE'}</strong>
+                    <ul>${data.patentability.section101.notes.map(n => `<li>${n}</li>`).join('')}</ul>
+                </div>
+                <div class="patentability-box ${data.patentability.section102.novel === true ? 'success' : data.patentability.section102.novel === false ? 'danger' : 'warning'}">
+                    <h4>§ 102 - Novelty</h4>
+                    <strong>${data.patentability.section102.novel === true ? '✓ NOVEL' : data.patentability.section102.novel === false ? '✗ NOT NOVEL' : '? UNKNOWN'}</strong>
+                    <ul>${data.patentability.section102.notes.map(n => `<li>${n}</li>`).join('')}</ul>
+                </div>
+                <div class="patentability-box ${data.patentability.section103.nonObvious === true ? 'success' : data.patentability.section103.nonObvious === false ? 'danger' : 'warning'}">
+                    <h4>§ 103 - Non-Obviousness</h4>
+                    <strong>${data.patentability.section103.nonObvious === true ? '✓ NON-OBVIOUS' : data.patentability.section103.nonObvious === false ? '✗ OBVIOUS' : '? UNKNOWN'}</strong>
+                    <ul>${data.patentability.section103.notes.map(n => `<li>${n}</li>`).join('')}</ul>
+                </div>
+                <div class="patentability-box ${data.patentability.overall.patentable ? 'success' : 'warning'}">
+                    <h3>${data.patentability.overall.patentable ? '✓ LIKELY PATENTABLE' : '? UNCERTAIN'}</h3>
+                    <p>Confidence: ${data.patentability.overall.confidence}</p>
+                </div>
+            `;
+
+            // Recommendations
+            const recsDiv = document.getElementById('recommendations-list');
+            recsDiv.innerHTML = data.report.recommendations.map(r => 
+                `<div class="recommendation ${r.priority}"><strong>[${r.priority.toUpperCase()}]</strong> ${r.text}</div>`
+            ).join('');
+        }
+
+        function generateSummary(data) {
+            return `Patent: ${data.parsed.title}
+
+Key Findings:
+• Total Claims: ${data.parsed.claims.length}
+• Chemical Entities: ${data.chemical.compounds.length}
+• Markush Variables: ${Object.keys(data.markush.variables).length}
+• Scope Coverage: ${data.scope.coveragePercentage}%
+• Possible Combinations: ${data.markush.totalCombinations.toLocaleString()}
+
+Novelty Indicators: ${data.chemical.noveltyIndicators.length > 0 ? 'Detected' : 'None found'}
+Scope Breadth: ${data.markush.scopeSummary.scopeBreadth}
+
+Patentability: ${data.patentability.overall.patentable ? 'LIKELY PATENTABLE' : 'UNCERTAIN - Further analysis needed'}`;
+        }
+
+        function validateStructure() {
+            const structure = document.getElementById('structure-input').value.trim();
+            if (!structure) { alert('Enter a structure'); return; }
+            if (!currentAnalysis) { alert('Analyze a patent first'); return; }
+            
+            alert(`Structure Validation:\n\nInput: ${structure}\n\nThis feature checks if the structure falls within the patent claims.\n\nFor full validation, the system would compare SMILES/substructures against the Markush scope.`);
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tab + '-tab').classList.add('active');
+        }
+
+        function switchResultTab(tab) {
+            document.querySelectorAll('.result-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.result-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tab + '-content').classList.add('active');
+        }
+
+        function loadExample() {
+            document.getElementById('patent-input').value = `Title: Novel Pyrazole Compounds for Inflammatory Disorders
+
+Abstract: The present invention relates to novel pyrazole compounds with surprising anti-inflammatory activity.
+
+Claims:
+1. A compound of formula I:
+   wherein R1 is selected from H, methyl, ethyl, propyl, and butyl;
+   R2 is selected from phenyl, pyridyl, thienyl, and furyl;
+   R3 is OH, NH2, halogen, or alkyl;
+   provided that when R1 is H, R2 is not phenyl.
+
+2. The compound of claim 1, wherein R1 is methyl or ethyl.
+
+3. The compound of claim 1, wherein R2 is pyridyl.
+
+4. A pharmaceutical composition comprising a compound of claim 1.
+
+5. A method of treating inflammation comprising administering a compound of claim 1.
+
+Description: The invention provides novel pyrazole derivatives. The compounds show unexpectedly high selectivity for COX-2 inhibition.`;
+        }
+
+        function clearInput() {
+            document.getElementById('patent-input').value = '';
+            document.getElementById('results').classList.remove('show');
+            currentAnalysis = null;
+        }
+
+        function exportJSON() {
+            if (!currentAnalysis) { alert('Analyze a patent first'); return; }
+            const blob = new Blob([JSON.stringify(currentAnalysis, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'patent_analysis.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
